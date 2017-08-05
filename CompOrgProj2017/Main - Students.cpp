@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <io.h>
+#include "SHA-256.h"
 
 //#define TEST_CODE
 
@@ -22,6 +23,7 @@ char gOutFileName[256];
 char gKeyFileName[256];
 int gOp = 0;			// 1 = encrypt, 2 = decrypt
 int gNumRounds = 1;
+
 
 
 // Prototypes
@@ -109,6 +111,77 @@ lbl_CHK_ZU:
 EXIT_C_EXAMPLE:					// 
 	return;
 } // exCountLetters
+
+
+/*
+
+Here is basically what needs to be done, in invalid c code
+
+void encryptData(char* data, int length)
+{
+
+for(round = 0; round < gNumRounds; round++)
+{
+al = gPasswordHash[0 + round * 4];
+ah = gPasswordHash9[1 + round * 4];
+
+bl = gPasswordHash[2 + round * 4];
+bh = gPasswordHash[3 + round * 4];
+
+if (bx == 0)
+{
+bx = 0xFFFF;
+}
+
+index = ax;
+
+for(x = 0; x < length; x++)
+{
+data[x] ^= keyfile[index];
+
+index += bx;
+
+if(index >= 65537)
+{
+index -= 65537;
+}
+
+data[x] = data[x] >> 1;
+data[x] = swapnibbles(data[x]);
+data[x] = reverse(data[x]);
+data[x] = swaphalfnibbles(data[x]);
+data[x] = data[x] << 1;
+
+
+}
+}
+}
+
+char swapnibbles(char c)
+{
+char tmp1 = 0, tmp2 = 0;
+tmp1 = (tmp1 | (c & 0x0f));
+tmp2 = (tmp2 | (c & 0xf0));
+
+c = c & 0;
+
+return (c | (tmp1 | tmp2));
+
+}
+
+char swaphalfnibbles(char c)
+{
+
+}
+
+unsigned char reverse(unsigned char b) {
+b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+return b;
+}
+
+*/
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // code to encrypt the data as specified by the project assignment
