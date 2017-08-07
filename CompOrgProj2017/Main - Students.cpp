@@ -485,7 +485,7 @@ void decryptData(char *data, int filesize)
 		mov ebx, 0;
 		mov esi, ecx;
 		mov bl, [edi + esi];
-		ror bl, 1;
+		rol bl, 1;
 		mov[edi + esi], bl;
 
 
@@ -565,7 +565,7 @@ void decryptData(char *data, int filesize)
 		mov[edi + esi], dl;
 		mov bl, [edi + esi];
 
-		rol bl, 1;
+		ror bl, 1;
 		mov[edi + esi], bl;
 		pop ebx;
 		add ecx, 1;
