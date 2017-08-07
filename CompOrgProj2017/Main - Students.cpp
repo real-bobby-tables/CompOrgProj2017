@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <io.h>
 #include "SHA-256.h"
+#define _CRT_SECURE_NO_WARNINGS 
+
+#pragma warning(disable:4996)
 
 //#define TEST_CODE
 
@@ -23,7 +26,7 @@ char gOutFileName[256];
 char gKeyFileName[256];
 int gOp = 0;			// 1 = encrypt, 2 = decrypt
 int gNumRounds = 1;
-
+const char * debug = "%d = ebp, \n";
 
 
 // Prototypes
@@ -183,9 +186,51 @@ return b;
 
 */
 
+/*
+
+unsigned char swappnibbles(unsigned char c)
+{
+	__asm
+	{
+		
+
+		//exit
+		jmp EXIT;
+	}
+
+EXIT: return;
+}
+
+unsigned char swaphalfbibbles(unsigned char c)
+{
+	__asm
+	{
+		
+		//exit
+		jmp EXIT;
+	}
+
+EXIT: return;
+}
+
+unsigned char reversebits(unsigned char c)
+{
+	__asm
+	{
+		
+
+		jmp EXIT;
+	}
+
+EXIT: return;
+}
+
+
+*/
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // code to encrypt the data as specified by the project assignment
-void encryptData(char *data, int length)
+void encryptData(char *data, int filesize)
 {
 	// you can not declare any local variables in C, set up the stack frame and 
 	// assign them in assembly
@@ -193,12 +238,219 @@ void encryptData(char *data, int length)
 
 		// you will need to reference these global variables
 		// gptrPasswordHash, gptrKey
+		cld; //do I even need this??
+		//mov edi, data;
+		mov edx, 0;
+		mov ecx, 0;
+		mov eax, 0;
+		mov ebx, 0;
+		mov esi, 0;
+		mov edi, 0;
+		jmp OuterLoop;
+
+
+	OuterLoop:
+		cmp ecx, gNumRounds;
+		je EXIT_C_ENCRYPT_DATA;
+
+
+		mov ah, BYTE PTR gptrPasswordHash[0 + ecx * 4];
+		mov al, BYTE PTR gptrPasswordHash[1 + ecx * 4];
+		mov bh, BYTE PTR gptrPasswordHash[2 + ecx * 4];
+		mov bl, BYTE PTR gptrPasswordHash[3 + ecx * 4];
+
+		//ax is the index,
+		//bx is the hopcount
+		
+
+		//mov [ebp - 8], ax;
+		inc ecx;
+		push ecx;
+		mov ecx, 0;
+		cmp bx, 0; //need to chck if hopcount is zero and if so, set it to 0xFFFFh
+		je SET_BX;
+		jmp INNER_LOOP;
+
+	SET_BX:
+		mov bx, 0xFFFF;
+		jmp INNER_LOOP;
+
+
+	INNER_LOOP:
+		cmp filesize, ecx;
+		jge OUTERLOOP_MIDPOINT;
+		movzx esi, ax;
+		mov edi, ecx;
+		push ebx;
+		push eax;
+		mov bl, BYTE PTR data[edi];
+		mov al, BYTE PTR gptrKey[esi];
+		xor bl, al;
+		mov edi, data;
+		mov [edi + ecx], bl;
+		pop eax;
+		pop ebx;
+		//xor BYTE PTR data[edi], BYTE PTR gptrKey[esi];
+		add eax, ebx;
+		cmp ax, 0xFFFF;
+		jge INC_HOP_COUNT;
+		jmp CRYPTO_PART;
+
+	INC_HOP_COUNT:
+		sub ax, 0xFFFF;
+		jmp CRYPTO_PART;
+
+	OUTERLOOP_MIDPOINT:
+		pop ecx;
+		jmp OuterLoop;
+
+	CRYPTO_PART:
+		push ebx;
+		movzx esi, ecx;
+		mov edi, data;
+		mov bl, [edi + esi];
+		ror bl, 1;
+		
+		
+		/***********swap the nibbles ***************/
+		mov dl, 0;
+
+
+		mov dl, bl;
+
+
+		and bl, 0x0F;
+		and dl, 0xF0;
+		shl bl, 4;
+		shr dl, 4;
+		or dl, bl;
+
+
+		/*******************************************/
+
+
+		mov[edi + ecx], dl;
+		mov bl, [edi + esi];
+
+
+		/**********Reverse the bits*********/
+		mov dl, 0; //clear edx, as its our ret value
+
+		push ecx;
+
+		mov cl, bl;
+		and bl, 0xF0;
+		shr bl, 4;
+		and cl, 0x0F;
+		shl cl, 4;
+		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+		mov dl, bl;
+		and bl, 0xCC;
+		shr bl, 2;
+		and cl, 0x33;
+		shl cl, 2;
+		or bl, cl;
+		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+		and bl, 0xAA;
+		shr bl, 1;
+		and cl, 0x55;
+		shl cl, 1;
+		or bl, cl;
+		mov dl, bl; //b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+
+		pop ecx;
+		pop ebx;
+
+		/**********************/
+
+		mov[edi + esi], dl;
+		mov bl, [edi + esi];
+
+		/************************swap the half nibbles****************************/
+
+		mov edx, 0;
+
+		mov dl, bl;
+
+		and dl, 0xCC;
+		and bl, 0x33;
+
+		shr dl, 2;
+		shl bl, 2;
+
+		or dl, bl;
+
+		pop ebx;
+
+		/*****************************************************/
+
+		mov[edi + esi], dl;
+		mov bl, [edi + esi];
+		
+		rol bl, 1;
+		mov[edi + esi], bl;
+		pop ebx;
+		add ecx, 1;
+		jmp INNER_LOOP;
+
+
+/*
+	swapnibbles:
+		
+
+
+
+	swaphalfnibbles:
+		mov edx, 0;
+		push ebx;
+
+		mov dl, bl;
+
+		and dl, 0xCC;
+		and bl, 0x33;
+
+		shr dl, 2;
+		shl bl, 2;
+
+		or dl, bl;
+
+		pop ebx;
+
+	reversebits:
+		mov dl, 0; //clear edx, as its our ret value
+
+		push ecx;
+
+		mov cl, bl;
+		and bl, 0xF0;
+		shr bl, 4;
+		and cl, 0x0F;
+		shl cl, 4;
+		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+		mov dl, bl;
+		and bl, 0xCC;
+		shr bl, 2;
+		and cl, 0x33;
+		shl cl, 2;
+		or bl, cl;
+		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+		and bl, 0xAA;
+		shr bl, 1;
+		and cl, 0x55;
+		shl cl, 1;
+		or bl, cl;
+		mov dl, bl; //b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+
+		pop ebx;
+		pop ecx;
+		
+		*/
 
 		// simple example that replaces first byte of data with third byte in teh key filewhich is 0x7A == 'z'
-		mov esi,gptrKey;
-		mov al,[esi+2];		// access 3rd byte in keyfile
-		mov edi,data
-		mov [edi],al
+		//mov esi,gptrKey;
+		//mov al,[esi+2];		// access 3rd byte in keyfile
+		//mov edi,data
+		//mov [edi],al
 	}
 
 EXIT_C_ENCRYPT_DATA:
@@ -234,16 +486,170 @@ int encryptFile(FILE *fptrIn, FILE *fptrOut)
 	return 0;
 } // encryptFile
 
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // code to decrypt the data as specified by the project assignment
-void decryptData(char *data, int length)
+void decryptData(char *data, int filesize)
 {
 	// you can not declare any local variables in C, set up the stack frame and 
 	// assign them in assembly
 	__asm {
-
 		// you will need to reference these global variables
 		// gptrPasswordHash, gptrKey
+		cld; //do I even need this??
+			 //mov edi, data;
+		mov edx, 0;
+		mov ecx, 0;
+		mov eax, 0;
+		mov ebx, 0;
+		jmp OuterLoop;
+
+
+	OuterLoop:
+		cmp ecx, gNumRounds;
+		je EXIT_C_DECRYPT_DATA;
+
+
+		mov ah, BYTE PTR gptrPasswordHash[0 + ecx * 4];
+		mov al, BYTE PTR gptrPasswordHash[1 + ecx * 4];
+		mov bh, BYTE PTR gptrPasswordHash[2 + ecx * 4];
+		mov bl, BYTE PTR gptrPasswordHash[3 + ecx * 4];
+
+		//ax is the index,
+		//bx is the hopcount
+
+
+		//mov [ebp - 8], ax;
+		inc ecx;
+		push ecx;
+		mov ecx, 0;
+		cmp bx, 0; //need to chck if hopcount is zero and if so, set it to 0xFFFFh
+		je SET_BX;
+		jmp INNER_LOOP;
+
+	SET_BX:
+		mov bx, 0xFFFF;
+		jmp INNER_LOOP;
+
+
+	INNER_LOOP:
+		cmp filesize, ecx;
+		jge OUTERLOOP_MIDPOINT;
+		movzx esi, ax;
+		mov edi, ecx;
+		push ebx;
+		push eax;
+		mov bl, BYTE PTR data[edi];
+		mov al, BYTE PTR gptrKey[esi];
+		xor bl, al;
+		mov BYTE PTR data[edi], bl;
+		pop eax;
+		pop ebx;
+		//xor BYTE PTR data[edi], BYTE PTR gptrKey[esi];
+		add eax, ebx;
+		cmp ax, 0xFFFF;
+		jge INC_HOP_COUNT;
+		jmp CRYPTO_PART;
+
+	INC_HOP_COUNT:
+		sub ax, 0xFFFF;
+		jmp CRYPTO_PART;
+
+	OUTERLOOP_MIDPOINT:
+		pop ecx;
+		jmp OuterLoop;
+
+	CRYPTO_PART:
+		push ebx;
+		movzx esi, ecx;
+		mov bl, BYTE PTR data[esi];
+		rol bl, 1;
+
+
+		/************************swap the half nibbles****************************/
+
+		mov edx, 0;
+
+		mov dl, bl;
+
+		and dl, 0xCC;
+		and bl, 0x33;
+
+		shr dl, 2;
+		shl bl, 2;
+
+		or dl, bl;
+
+		pop ebx;
+
+		/************************************************************************/
+		
+
+		mov BYTE PTR data[esi], dl;
+		mov bl, BYTE PTR data[esi];
+
+
+		/**********Reverse the bits*********/
+		mov dl, 0; //clear edx, as its our ret value
+
+		push ecx;
+
+		mov cl, bl;
+		and bl, 0xF0;
+		shr bl, 4;
+		and cl, 0x0F;
+		shl cl, 4;
+		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+		mov dl, bl;
+		and bl, 0xCC;
+		shr bl, 2;
+		and cl, 0x33;
+		shl cl, 2;
+		or bl, cl;
+		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+		and bl, 0xAA;
+		shr bl, 1;
+		and cl, 0x55;
+		shl cl, 1;
+		or bl, cl;
+		mov dl, bl; //b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+
+		pop ecx;
+		pop ebx;
+
+		/*********************************/
+
+		mov BYTE PTR data[esi], dl;
+		mov bl, BYTE PTR data[esi];
+
+		/***********swap the nibbles ***************/
+		mov dl, 0;
+
+
+		mov dl, bl;
+
+
+		and bl, 0x0F;
+		and dl, 0xF0;
+		shl bl, 4;
+		shr dl, 4;
+		or dl, bl;
+
+
+		/*******************************************/
+
+
+
+		mov BYTE PTR data[esi], dl;
+		mov bl, BYTE PTR data[esi];
+
+		rol bl, 1;
+		mov BYTE PTR data[esi], bl;
+		pop ebx;
+		add ecx, 1;
+		jmp INNER_LOOP;
+
+
 	}
 
 EXIT_C_DECRYPT_DATA:
@@ -278,6 +684,99 @@ int decryptFile(FILE *fptrIn, FILE *fptrOut)
 
 	return 0;
 } // decryptFile
+
+/*
+
+unsigned char swappnibbles(unsigned char c)
+{
+	__asm
+	{
+		push edx;
+		push ebx;
+
+		mov dl, c;
+		mov bl, c;
+
+
+		and bl, 0x0F;
+		and dl, 0xF0;
+		shl bl, 4;
+		shr dl, 4;
+		or dl, bl;
+
+		pop ebx;
+
+		//exit
+		jmp EXIT;
+	}
+
+EXIT: return;
+}
+
+unsigned char swaphalfbibbles(unsigned char c)
+{
+	__asm
+	{
+		mov edx, 0;
+		push ebx;
+		
+		mov dl, c;
+		mov bl, c;
+
+		and dl, 0xCC;
+		and bl, 0x33;
+
+		shr dl, 2;
+		shl bl, 2;
+
+		or dl, bl;
+
+		pop ebx;
+		//exit
+		jmp EXIT;
+	}
+
+EXIT: return;
+}
+
+unsigned char reversebits(unsigned char c)
+{
+	__asm 
+	{
+		mov dl, 0; //clear edx, as its our ret value
+		push ebx;
+		push ecx;
+		mov bl, c;
+		mov cl, c;
+		and bl, 0xF0;
+		shr bl, 4;
+		and cl, 0x0F;
+		shl cl, 4;
+		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+		mov dl, bl;
+		and bl, 0xCC;
+		shr bl, 2;
+		and cl, 0x33;
+		shl cl, 2;
+		or bl, cl;
+		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+		and bl, 0xAA;
+		shr bl, 1;
+		and cl, 0x55;
+		shl cl, 1;
+		or bl, cl;
+		mov dl, bl; //b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+
+		pop ebx;
+		pop ecx;
+
+		jmp EXIT;
+	}
+
+	EXIT: return;
+}
+
+*/
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 FILE *openInputFile(char *filename)
