@@ -191,7 +191,7 @@ void encryptData(char *data, int filesize)
 		mov ebx, 0;
 		mov bl, [edi + ecx];
 		mov al, [esi + edx];
-		XOR bl, al;
+		PXOR bl, al;
 		mov [edi + ecx], bl;
 		pop eax;
 		pop ebx;
@@ -221,16 +221,8 @@ void encryptData(char *data, int filesize)
 		
 		/***********swap the nibbles ***************/
 		mov dl, 0;
-
-
 		mov dl, bl;
-
-
-		and bl, 0x0F;
-		and dl, 0xF0;
-		shl bl, 4;
-		shr dl, 4;
-		or dl, bl;
+		rol dl, 4;
 
 
 		/*******************************************/
@@ -252,12 +244,14 @@ void encryptData(char *data, int filesize)
 		shl cl, 4;
 		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
 		mov dl, bl;
+		mov cl, bl;
 		and bl, 0xCC;
 		shr bl, 2;
 		and cl, 0x33;
 		shl cl, 2;
 		or bl, cl;
 		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+		mov cl, bl;
 		and bl, 0xAA;
 		shr bl, 1;
 		and cl, 0x55;
@@ -296,59 +290,6 @@ void encryptData(char *data, int filesize)
 		pop ebx;
 		add ecx, 1;
 		jmp INNER_LOOP;
-
-
-/*
-	swapnibbles:
-		
-
-
-
-	swaphalfnibbles:
-		mov edx, 0;
-		push ebx;
-
-		mov dl, bl;
-
-		and dl, 0xCC;
-		and bl, 0x33;
-
-		shr dl, 2;
-		shl bl, 2;
-
-		or dl, bl;
-
-		pop ebx;
-
-	reversebits:
-		mov dl, 0; //clear edx, as its our ret value
-
-		push ecx;
-
-		mov cl, bl;
-		and bl, 0xF0;
-		shr bl, 4;
-		and cl, 0x0F;
-		shl cl, 4;
-		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
-		mov dl, bl;
-		and bl, 0xCC;
-		shr bl, 2;
-		and cl, 0x33;
-		shl cl, 2;
-		or bl, cl;
-		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
-		and bl, 0xAA;
-		shr bl, 1;
-		and cl, 0x55;
-		shl cl, 1;
-		or bl, cl;
-		mov dl, bl; //b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-
-		pop ebx;
-		pop ecx;
-		
-		*/
 
 		// simple example that replaces first byte of data with third byte in teh key filewhich is 0x7A == 'z'
 		//mov esi,gptrKey;
@@ -399,6 +340,7 @@ void decryptData(char *data, int filesize)
 	// assign them in assembly
 	__asm {
 
+		//clear out all the regs that we are going to use.
 		mov edx, 0;
 		mov ecx, 0;
 		mov eax, 0;
@@ -461,7 +403,7 @@ void decryptData(char *data, int filesize)
 		mov ebx, 0;
 		mov bl, [edi + ecx];
 		mov al, [esi + edx];
-		XOR bl, al;
+		PXOR bl, al; //No freaking clue why the normal XOR does not work here, but PXOR does
 		mov[edi + ecx], bl;
 		pop eax;
 		pop ebx;
@@ -485,7 +427,7 @@ void decryptData(char *data, int filesize)
 		mov ebx, 0;
 		mov esi, ecx;
 		mov bl, [edi + esi];
-		rol bl, 1;
+		ror bl, 1;
 		mov[edi + esi], bl;
 
 
@@ -505,6 +447,8 @@ void decryptData(char *data, int filesize)
 
 		/*****************************************************/
 
+
+
 		mov[edi + esi], dl;
 		mov bl, [edi + esi];
 
@@ -521,12 +465,14 @@ void decryptData(char *data, int filesize)
 		shl cl, 4;
 		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
 		mov dl, bl;
+		mov cl, bl;
 		and bl, 0xCC;
 		shr bl, 2;
 		and cl, 0x33;
 		shl cl, 2;
 		or bl, cl;
 		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+		mov cl, bl;
 		and bl, 0xAA;
 		shr bl, 1;
 		and cl, 0x55;
@@ -542,35 +488,24 @@ void decryptData(char *data, int filesize)
 		mov bl, [edi + esi];
 
 
-
 		/***********swap the nibbles ***************/
 		mov dl, 0;
-
-
 		mov dl, bl;
-
-
-		and bl, 0x0F;
-		and dl, 0xF0;
-		shl bl, 4;
-		shr dl, 4;
-		or dl, bl;
+		rol dl, 4;
 
 
 		/*******************************************/
 
 
 
-
 		mov[edi + esi], dl;
 		mov bl, [edi + esi];
 
-		ror bl, 1;
+		rol bl, 1;
 		mov[edi + esi], bl;
 		pop ebx;
 		add ecx, 1;
 		jmp INNER_LOOP;
-
 
 	}
 
