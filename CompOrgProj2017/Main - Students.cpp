@@ -120,7 +120,7 @@ EXIT_C_EXAMPLE:					//
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // code to encrypt the data as specified by the project assignment
-void encryptData(char *data, int filesize)
+void encryptData(char *data, int filesize) //had to change param name since it apparently the inline assembler does not like param names called length
 {
 	// you can not declare any local variables in C, set up the stack frame and 
 	// assign them in assembly
@@ -138,13 +138,20 @@ void encryptData(char *data, int filesize)
 		jmp OuterLoop;
 
 
-	OuterLoop:
-		cmp ecx, gNumRounds;
+	OuterLoop:    //this is the initial for loop, 
+		cmp ecx, gNumRounds; //comparing the rounds, and if we have done enough iterations, leave
 		jge EXIT_C_ENCRYPT_DATA;
 
 
-		mov esi, gptrPasswordHash;
+		mov esi, gptrPasswordHash; //gotta be able to access that array data, right?
 
+
+		//ax is the index,
+		//bx is the hopcount
+		
+		//to put the data in the register correctly, 
+		//add it to the reg, do an arithmetic shift left by 8 (which is the equivalent of mul by 256),
+		//then add it again.
 		add al, [esi + 0 + ecx * 4];
 		sal eax, 8;
 		add al, [esi + 1 + ecx * 4];
@@ -153,23 +160,14 @@ void encryptData(char *data, int filesize)
 		sal ebx, 8;
 		add bl, [esi + 3 + ecx * 4];
 
-		mov esi, 0;
-
-		/*
-		mov ah, BYTE PTR gptrPasswordHash[0 + ecx * 4];
-		mov al, BYTE PTR gptrPasswordHash[1 + ecx * 4];
-		mov bh, BYTE PTR gptrPasswordHash[2 + ecx * 4];
-		mov bl, BYTE PTR gptrPasswordHash[3 + ecx * 4];
-		*/
-		//ax is the index,
-		//bx is the hopcount
+		mov esi, 0; //reset esi since we are gonna use that later
 		
 
-		//mov [ebp - 8], ax;
-		inc ecx;
-		push ecx;
-		mov ecx, 0;
-		cmp bx, 0; //need to chck if hopcount is zero and if so, set it to 0xFFFFh
+
+		inc ecx; //increment the counter, but then push it to save its state
+		push ecx; //since it needs to be used in the inner loop
+		mov ecx, 0; //new loop value
+		cmp bx, 0; //need to check if hopcount is zero and if so, set it to 0xFFFFh
 		je SET_BX;
 		jmp INNER_LOOP;
 
@@ -178,28 +176,27 @@ void encryptData(char *data, int filesize)
 		jmp INNER_LOOP;
 
 
+
 	INNER_LOOP:
-		cmp ecx, filesize;
-		jge OUTERLOOP_MIDPOINT;
-		//mov edi, data;
-		mov edx, eax;
+		cmp ecx, filesize; //check against the filesize, and if its greater or equal to,
+		jge OUTERLOOP_MIDPOINT; //break out of the inner loop and go back to the outer loop
+		mov edx, eax; //need to use eax's value as an index but also need to use 
 		mov edi, data;
 		mov esi, gptrKey;
-		push ebx;
+		push ebx; //save the index and hop count states
 		push eax;
-		mov eax, 0;
+		mov eax, 0; //clear the regs
 		mov ebx, 0;
-		mov bl, [edi + ecx];
-		mov al, [esi + edx];
-		PXOR bl, al;
-		mov [edi + ecx], bl;
-		pop eax;
+		mov bl, [edi + ecx]; //take a byte from the data buffer
+		mov al, [esi + edx]; //and the key file
+		PXOR bl, al; //no clue why the normal xor instruction does not work here, but PXOR does accomplish what is needed
+		mov [edi + ecx], bl; //then put that byte back in the data buffer
+		pop eax; //restore the states!
 		pop ebx;
-		//xor BYTE PTR data[edi], BYTE PTR gptrKey[esi];
 		add eax, ebx;
-		mov edx, 0;
-		cmp eax, 0x10001;
-		jge INC_HOP_COUNT;
+		mov edx, 0; //reset edx
+		cmp eax, 0x10001; //if the index is greater 65537, subtract that amount 
+		jge INC_HOP_COUNT; //and begin working on the actual bytes
 		jmp CRYPTO_PART;
 
 	INC_HOP_COUNT:
@@ -211,10 +208,11 @@ void encryptData(char *data, int filesize)
 		jmp OuterLoop;
 
 	CRYPTO_PART:
-		push ebx;
+		push ebx; //gotta save that hop count, yo
 		mov ebx, 0;
-		mov esi, ecx;
-		mov bl, [edi + esi];
+		mov esi, ecx; //im pretty sure this is actually redundant, and that I could just use ecx by itself,
+		//but by the time I had started actually realized this, it was everywhere
+		mov bl, [edi + esi]; //Begin the encryption process!
 		ror bl, 1;
 		mov [edi + esi], bl;
 
@@ -223,26 +221,22 @@ void encryptData(char *data, int filesize)
 		mov dl, 0;
 		mov dl, bl;
 		rol dl, 4;
-
-
 		/*******************************************/
 
 
-		mov[edi + esi], dl;
-		mov bl, [edi + esi];
+		mov[edi + esi], dl; //then moved the operated byte back into the data buffer
+		mov bl, [edi + esi]; //and begin again
 
 
 		/**********Reverse the bits*********/
-		mov dl, 0; //clear edx, as its our ret value
-
+		mov dl, 0; 
 		push ecx;
-
 		mov cl, bl;
 		and bl, 0xF0;
 		shr bl, 4;
 		and cl, 0x0F;
 		shl cl, 4;
-		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+		or bl, cl; // (var & 0xF0) >> 4 | (var & 0x0F) << 4;
 		mov dl, bl;
 		mov cl, bl;
 		and bl, 0xCC;
@@ -250,52 +244,40 @@ void encryptData(char *data, int filesize)
 		and cl, 0x33;
 		shl cl, 2;
 		or bl, cl;
-		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+		mov dl, bl; //(var & 0xCC) >> 2 | (var & 0x33) << 2;
 		mov cl, bl;
 		and bl, 0xAA;
 		shr bl, 1;
 		and cl, 0x55;
 		shl cl, 1;
 		or bl, cl;
-		mov dl, bl; //b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-
-		pop ecx;
-
-		/**********************/
+		mov dl, bl; //(var & 0xAA) >> 1 | (var & 0x55) << 1;
+		pop ecx; //restor the counter
+		/***********************************/
 
 		mov[edi + esi], dl;
 		mov bl, [edi + esi];
 
 		/************************swap the half nibbles****************************/
-
-
 		mov dl, bl;
-
 		and dl, 0xCC;
 		and bl, 0x33;
-
 		shr dl, 2;
 		shl bl, 2;
-
 		or dl, bl;
-
-
 		/*****************************************************/
-
 		mov[edi + esi], dl;
 		mov bl, [edi + esi];
 		
+		//do the final rotation, then put the byte back into the array, 
+		//restore the hop count, increment the counter, 
+		//and begin the loop again.
 		rol bl, 1;
 		mov[edi + esi], bl;
 		pop ebx;
 		add ecx, 1;
 		jmp INNER_LOOP;
 
-		// simple example that replaces first byte of data with third byte in teh key filewhich is 0x7A == 'z'
-		//mov esi,gptrKey;
-		//mov al,[esi+2];		// access 3rd byte in keyfile
-		//mov edi,data
-		//mov [edi],al
 	}
 
 EXIT_C_ENCRYPT_DATA:
@@ -349,6 +331,11 @@ void decryptData(char *data, int filesize)
 		mov edi, 0;
 		jmp OuterLoop;
 
+		//The code for the decryption is essentially the same as the code for the encryption,
+		//the only difference being that we rotate to the left first,
+		//swap the half nibbles, reverse the bits, swap the nibbles,
+		//and rotate to right
+		//which reverses the entire encryption process
 
 	OuterLoop:
 		cmp ecx, gNumRounds;
@@ -356,6 +343,13 @@ void decryptData(char *data, int filesize)
 
 
 		mov esi, gptrPasswordHash;
+
+		//ax is the index,
+		//bx is the hopcount
+
+		//to put the data in the register correctly, 
+		//add it to the reg, do an arithmetic shift left by 8 (which is the equivalent of mul by 256),
+		//then add it again.
 
 		add al, [esi + 0 + ecx * 4];
 		sal eax, 8;
@@ -367,17 +361,8 @@ void decryptData(char *data, int filesize)
 
 		mov esi, 0;
 
-		/*
-		mov ah, BYTE PTR gptrPasswordHash[0 + ecx * 4];
-		mov al, BYTE PTR gptrPasswordHash[1 + ecx * 4];
-		mov bh, BYTE PTR gptrPasswordHash[2 + ecx * 4];
-		mov bl, BYTE PTR gptrPasswordHash[3 + ecx * 4];
-		*/
-		//ax is the index,
-		//bx is the hopcount
 
 
-		//mov [ebp - 8], ax;
 		inc ecx;
 		push ecx;
 		mov ecx, 0;
@@ -393,7 +378,6 @@ void decryptData(char *data, int filesize)
 	INNER_LOOP:
 		cmp ecx, filesize;
 		jge OUTERLOOP_MIDPOINT;
-		//mov edi, data;
 		mov edx, eax;
 		mov edi, data;
 		mov esi, gptrKey;
@@ -407,7 +391,7 @@ void decryptData(char *data, int filesize)
 		mov[edi + ecx], bl;
 		pop eax;
 		pop ebx;
-		//xor BYTE PTR data[edi], BYTE PTR gptrKey[esi];
+
 		add eax, ebx;
 		mov edx, 0;
 		cmp eax, 0x10001;
@@ -432,21 +416,13 @@ void decryptData(char *data, int filesize)
 
 
 		/************************swap the half nibbles****************************/
-
-
 		mov dl, bl;
-
 		and dl, 0xCC;
 		and bl, 0x33;
-
 		shr dl, 2;
 		shl bl, 2;
-
 		or dl, bl;
-
-
 		/*****************************************************/
-
 
 
 		mov[edi + esi], dl;
@@ -455,15 +431,13 @@ void decryptData(char *data, int filesize)
 
 		/**********Reverse the bits*********/
 		mov dl, 0; //clear edx, as its our ret value
-
 		push ecx;
-
 		mov cl, bl;
 		and bl, 0xF0;
 		shr bl, 4;
 		and cl, 0x0F;
 		shl cl, 4;
-		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+		or bl, cl; //(var & 0xF0) >> 4 | (var & 0x0F) << 4;
 		mov dl, bl;
 		mov cl, bl;
 		and bl, 0xCC;
@@ -471,35 +445,30 @@ void decryptData(char *data, int filesize)
 		and cl, 0x33;
 		shl cl, 2;
 		or bl, cl;
-		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+		mov dl, bl; //(var & 0xCC) >> 2 | (var & 0x33) << 2;
 		mov cl, bl;
 		and bl, 0xAA;
 		shr bl, 1;
 		and cl, 0x55;
 		shl cl, 1;
 		or bl, cl;
-		mov dl, bl; //b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-
+		mov dl, bl; //(b & 0xAA) >> 1 | (b & 0x55) << 1;
 		pop ecx;
-
 		/**********************/
 
 		mov[edi + esi], dl;
 		mov bl, [edi + esi];
 
-
 		/***********swap the nibbles ***************/
 		mov dl, 0;
 		mov dl, bl;
 		rol dl, 4;
-
-
 		/*******************************************/
-
-
 
 		mov[edi + esi], dl;
 		mov bl, [edi + esi];
+
+
 
 		rol bl, 1;
 		mov[edi + esi], bl;
@@ -542,98 +511,6 @@ int decryptFile(FILE *fptrIn, FILE *fptrOut)
 	return 0;
 } // decryptFile
 
-/*
-
-unsigned char swappnibbles(unsigned char c)
-{
-	__asm
-	{
-		push edx;
-		push ebx;
-
-		mov dl, c;
-		mov bl, c;
-
-
-		and bl, 0x0F;
-		and dl, 0xF0;
-		shl bl, 4;
-		shr dl, 4;
-		or dl, bl;
-
-		pop ebx;
-
-		//exit
-		jmp EXIT;
-	}
-
-EXIT: return;
-}
-
-unsigned char swaphalfbibbles(unsigned char c)
-{
-	__asm
-	{
-		mov edx, 0;
-		push ebx;
-		
-		mov dl, c;
-		mov bl, c;
-
-		and dl, 0xCC;
-		and bl, 0x33;
-
-		shr dl, 2;
-		shl bl, 2;
-
-		or dl, bl;
-
-		pop ebx;
-		//exit
-		jmp EXIT;
-	}
-
-EXIT: return;
-}
-
-unsigned char reversebits(unsigned char c)
-{
-	__asm 
-	{
-		mov dl, 0; //clear edx, as its our ret value
-		push ebx;
-		push ecx;
-		mov bl, c;
-		mov cl, c;
-		and bl, 0xF0;
-		shr bl, 4;
-		and cl, 0x0F;
-		shl cl, 4;
-		or bl, cl; // b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
-		mov dl, bl;
-		and bl, 0xCC;
-		shr bl, 2;
-		and cl, 0x33;
-		shl cl, 2;
-		or bl, cl;
-		mov dl, bl; //b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
-		and bl, 0xAA;
-		shr bl, 1;
-		and cl, 0x55;
-		shl cl, 1;
-		or bl, cl;
-		mov dl, bl; //b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-
-		pop ebx;
-		pop ecx;
-
-		jmp EXIT;
-	}
-
-	EXIT: return;
-}
-
-*/
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 FILE *openInputFile(char *filename)
