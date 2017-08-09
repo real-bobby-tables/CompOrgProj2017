@@ -126,9 +126,8 @@ void encryptData(char *data, int filesize) //had to change param name since it a
 	// assign them in assembly
 	__asm {
 
-		// you will need to reference these global variables
-		// gptrPasswordHash, gptrKey
-		//mov edi, data;
+		//clear out all the regs that we are going to use.
+		//in place of local variables, these registers are used.
 		mov edx, 0;
 		mov ecx, 0;
 		mov eax, 0;
@@ -180,12 +179,12 @@ void encryptData(char *data, int filesize) //had to change param name since it a
 	INNER_LOOP:
 		cmp ecx, filesize; //check against the filesize, and if its greater or equal to,
 		jge OUTERLOOP_MIDPOINT; //break out of the inner loop and go back to the outer loop
-		mov edx, eax; //need to use eax's value as an index but also need to use 
+		mov edx, eax; //need to use eax's value as an index but also need to use it as a temporary variable
 		mov edi, data;
 		mov esi, gptrKey;
 		push ebx; //save the index and hop count states
 		push eax;
-		mov eax, 0; //clear the regs
+		mov eax, 0; //clear the regs (probably not necessary)
 		mov ebx, 0;
 		mov bl, [edi + ecx]; //take a byte from the data buffer
 		mov al, [esi + edx]; //and the key file
@@ -203,17 +202,16 @@ void encryptData(char *data, int filesize) //had to change param name since it a
 		sub eax, 0x10001;
 		jmp CRYPTO_PART;
 
-	OUTERLOOP_MIDPOINT:
+	OUTERLOOP_MIDPOINT: //used as a way to restore the counter of the outer loop
 		pop ecx;
 		jmp OuterLoop;
 
 	CRYPTO_PART:
-		push ebx; //gotta save that hop count, yo
+		push ebx; //gotta save that hop count
 		mov ebx, 0;
-		mov esi, ecx; //im pretty sure this is actually redundant, and that I could just use ecx by itself,
-		//but by the time I had started actually realized this, it was everywhere
+		mov esi, ecx; //im pretty sure this is actually redundant, but use esi as the index
 		mov bl, [edi + esi]; //Begin the encryption process!
-		ror bl, 1;
+		ror bl, 1; //rotate the byte right by one and then put it back in the buffer
 		mov [edi + esi], bl;
 
 		
@@ -323,6 +321,7 @@ void decryptData(char *data, int filesize)
 	__asm {
 
 		//clear out all the regs that we are going to use.
+		//in place of local variables, these registers are used.
 		mov edx, 0;
 		mov ecx, 0;
 		mov eax, 0;
